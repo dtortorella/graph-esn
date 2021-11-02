@@ -84,14 +84,14 @@ class GraphReservoir(Module):
     Base class for graph reservoirs
 
     :param num_layers: Reservoir layers
-    :param hidden_features: Size of reservoir (i.e. number of hidden units per layer)
     :param in_features: Size of input
-    :param out_features: Size of output targets
+    :param hidden_features: Size of reservoir (i.e. number of hidden units per layer)
+    :param bias: Whether bias term is present
     :param kwargs: Other `ReservoirConvLayer` arguments (activation, etc.)
     """
     layers: ModuleList
 
-    def __init__(self, num_layers: int, hidden_features: int, in_features: int, bias: bool = False, **kwargs):
+    def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False, **kwargs):
         super().__init__()
         assert num_layers > 0
         self.layers = ModuleList()
