@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Union
+from typing import Optional, Callable, Union, List
 
 import torch
 import torch.nn.functional as F
@@ -78,6 +78,16 @@ class ReservoirConvLayer(MessagePassing):
             self.bias.data = bias(self.bias.shape)
         self.leakage.data = torch.tensor(leakage)
 
+    @property
+    def in_features(self) -> int:
+        """Input dimension"""
+        return self.input_weight.shape[1]
+
+    @property
+    def out_features(self) -> int:
+        """Reservoir state dimension"""
+        return self.input_weight.shape[0]
+
 
 class GraphReservoir(Module):
     """
@@ -114,6 +124,21 @@ class GraphReservoir(Module):
         """
         for layer in self.layers:
             layer.initialize_parameters(recurrent=recurrent, input=input, bias=bias, leakage=leakage)
+
+    @property
+    def num_layers(self) -> int:
+        """Number of reservoir layers"""
+        return len(self.layers)
+
+    @property
+    def in_features(self) -> int:
+        """Input dimension"""
+        return self.layers[0].input_weight.shape[1]
+
+    @property
+    def out_features(self) -> int:
+        """Embedding dimension"""
+        raise NotImplementedError()
 
 
 class StaticGraphReservoir(GraphReservoir):
