@@ -185,7 +185,7 @@ class TemporalGraphReservoir(GraphReservoir):
         for t in range(input.shape[0]):
             state[0] = self.layers[0](edge_index, input[t], state[0])
             for i in range(1, self.num_layers):
-                state[i] = self.layers[0](edge_index, state[i - 1], state[i])
+                state[i] = self.layers[i](edge_index, state[i - 1], state[i])
         if self.fully:
             return torch.cat([self.pooling(x, batch) if self.pooling else x for x in state], dim=-1)
         else:
