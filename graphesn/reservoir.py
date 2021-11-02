@@ -10,6 +10,9 @@ from torch_sparse import matmul, SparseTensor
 
 from graphesn import matrix
 
+__all__ = ['initializer', 'ReservoirConvLayer', 'GraphReservoir', 'StaticGraphReservoir', 'TemporalGraphReservoir',
+           'DynamicGraphReservoir']
+
 
 def initializer(name: str, **options) -> Callable[[Size], Tensor]:
     """
