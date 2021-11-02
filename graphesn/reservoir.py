@@ -3,7 +3,7 @@ from typing import Optional, Callable, Union
 import torch
 import torch.nn.functional as F
 from torch import Tensor, Size
-from torch.nn import Parameter
+from torch.nn import Module, Parameter, ModuleList
 from torch_geometric.nn import MessagePassing
 from torch_geometric.typing import Adj
 from torch_sparse import matmul, SparseTensor
@@ -74,3 +74,52 @@ class ReservoirConvLayer(MessagePassing):
         if self.bias is not None:
             self.bias.data = bias(self.bias.shape)
         self.leakage.data = torch.tensor(leakage)
+
+
+class GraphReservoir(Module):
+    """
+    Base class for graph reservoirs
+
+    :param num_layers: Reservoir layers
+    :param hidden_features: Size of reservoir (i.e. number of hidden units per layer)
+    :param in_features: Size of input
+    :param out_features: Size of output targets
+    :param kwargs: Other `ReservoirConvLayer` arguments (activation, etc.)
+    """
+    layers: ModuleList
+
+    def __init__(self, num_layers: int, hidden_features: int, in_features: int, bias: bool = False, **kwargs):
+        super().__init__()
+        assert num_layers > 0
+        self.layers = ModuleList()
+        self.layers.append(
+            ReservoirConvLayer(input_features=in_features, hidden_features=hidden_features, bias=bias, **kwargs))
+        for _ in range(1, num_layers):
+            self.layers.append(
+                ReservoirConvLayer(input_features=hidden_features, hidden_features=hidden_features, bias=bias,
+                                   **kwargs))
+
+    def initialize_parameters(self, recurrent: Callable[[Size], Tensor], input: Callable[[Size], Tensor],
+                              bias: Optional[Callable[[Size], Tensor]] = None, leakage: float = 1.0):
+        """
+        Initialize reservoir weights for all layers
+
+        :param recurrent: Random matrix generator for recurrent weight
+        :param input: Random matrix generator for input weight
+        :param bias: Random matrix generator for bias, if present
+        :param leakage: Leakage constant
+        """
+        for layer in self.layers:
+            layer.initialize_parameters(recurrent=recurrent, input=input, bias=bias, leakage=leakage)
+
+
+class StaticGraphReservoir(GraphReservoir):
+    ...
+
+
+class TemporalGraphReservoir(GraphReservoir):
+    ...
+
+
+class DynamicGraphReservoir(GraphReservoir):
+    ...
