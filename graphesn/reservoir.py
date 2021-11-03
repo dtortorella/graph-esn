@@ -142,7 +142,82 @@ class GraphReservoir(Module):
 
 
 class StaticGraphReservoir(GraphReservoir):
-    ...
+    """
+    Reservoir for static graphs
+
+    :param num_layers: Reservoir layers
+    :param in_features: Size of input
+    :param hidden_features: Size of reservoir (i.e. number of hidden units per layer)
+    :param bias: Whether bias term is present
+    :param pooling: Graph pooling function (optional, default no pooling)
+    :param fully: Whether to concatenate all layers' encodings, or use just final layer encoding
+    :param max_iterations: Maximum number of iterations (optional, default infinity)
+    :param epsilon: Convergence condition (default 1e-6)
+    """
+    pooling: Optional[Callable[[Tensor, Tensor], Tensor]]
+    fully: bool
+    max_iterations: Optional[int]
+    epsilon: float
+
+    def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False,
+                 pooling: Optional[Callable[[Tensor, Tensor], Tensor]] = None, fully: bool = False,
+                 max_iterations: Optional[int] = None, epsilon: float = 1e-6, **kwargs):
+        super().__init__(num_layers, in_features, hidden_features, bias, **kwargs)
+        self.pooling = pooling
+        self.fully = fully
+        self.max_iterations = max_iterations
+        self.epsilon = epsilon
+
+    def forward(self, edge_index: Adj, input: Tensor, initial_state: Optional[Union[List[Tensor], Tensor]] = None,
+                batch: Optional[Tensor] = None) -> Tensor:
+        """
+        Encode input
+
+        :param edge_index: Adjacency
+        :param input: Input graph signal (nodes × in_features)
+        :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
+        :param batch: Batch index (optional)
+        :return: Encoding (samples × dim)
+        """
+        if initial_state is None:
+            initial_state = [torch.zeros(input.shape[0], layer.out_features).to(input) for layer in self.layers]
+        elif len(initial_state) != self.num_layers and initial_state.dim() == 2:
+            initial_state = [initial_state] * self.num_layers
+        embeddings = []
+        embeddings.append(self._embed(edge_index, input, initial_state[0], self.layers[0]))
+        for i in range(1, self.num_layers):
+            embeddings.append(self._embed(edge_index, embeddings[-1], initial_state[i], self.layers[i]))
+        if self.fully:
+            return torch.cat([self.pooling(x, batch) if self.pooling else x for x in embeddings], dim=-1)
+        else:
+            return self.pooling(embeddings[-1], batch) if self.pooling else embeddings[-1]
+
+    def _embed(self, edge_index: Adj, input: Tensor, initial_state: Tensor, layer: ReservoirConvLayer) -> Tensor:
+        """
+        Compute node embeddings for a single layer
+
+        :param edge_index: Adjacency
+        :param input: Input graph signal (nodes × in_features)
+        :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
+        :param layer: Reservoir layer
+        :return: Encoding (nodes × dim)
+        """
+        iterations = 0
+        old_state = initial_state
+        while True:
+            state = layer(edge_index, input, old_state)
+            if self.max_iterations and iterations >= self.max_iterations:
+                break
+            if torch.norm(old_state - state) < self.epsilon:
+                break
+            old_state = state
+            iterations += 1
+        return state
+
+    @property
+    def out_features(self) -> int:
+        """Embedding dimension"""
+        return sum(layer.out_features for layer in self.layers) if self.fully else self.layers[-1].out_features
 
 
 class TemporalGraphReservoir(GraphReservoir):
