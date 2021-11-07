@@ -1,6 +1,9 @@
 # Graph ESN library
 Pytorch implementation of echo state networks for static graphs, temporal graphs, and dynamic graphs.
 
+## Installation
+``` python -m pip install graphesn ```
+
 ## References
 * C. Gallicchio, A. Micheli (2010). Graph Echo State Networks. The 2010 International Joint Conference on Neural Networks (IJCNN 2010), pp. 3967–3974.
 * C. Gallicchio, A. Micheli (2020). Fast and Deep Graph Neural Networks. The Thirty-Fourth AAAI Conference on Artificial Intelligence (AAAI-20).
