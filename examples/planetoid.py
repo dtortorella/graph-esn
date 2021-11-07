@@ -4,7 +4,6 @@ import torch
 from torch.nn.functional import one_hot
 from torch_geometric.datasets import Planetoid
 from torch_geometric.utils import to_dense_adj
-
 from graphesn import StaticGraphReservoir, initializer, Readout
 
 parser = argparse.ArgumentParser()
