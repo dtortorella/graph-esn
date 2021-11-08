@@ -10,8 +10,7 @@ from torch_sparse import matmul, SparseTensor
 
 from graphesn import matrix
 
-__all__ = ['initializer', 'ReservoirConvLayer', 'GraphReservoir', 'StaticGraphReservoir', 'TemporalGraphReservoir',
-           'DynamicGraphReservoir']
+__all__ = ['initializer', 'ReservoirConvLayer', 'GraphReservoir', 'StaticGraphReservoir', 'DynamicGraphReservoir']
 
 
 def initializer(name: str, **options) -> Callable[[Size], Tensor]:
@@ -220,58 +219,6 @@ class StaticGraphReservoir(GraphReservoir):
         return sum(layer.out_features for layer in self.layers) if self.fully else self.layers[-1].out_features
 
 
-class TemporalGraphReservoir(GraphReservoir):
-    """
-    Reservoir for temporal graphs
-
-    :param num_layers: Reservoir layers
-    :param in_features: Size of input
-    :param hidden_features: Size of reservoir (i.e. number of hidden units per layer)
-    :param bias: Whether bias term is present
-    :param pooling: Graph pooling function (optional, default no pooling)
-    :param fully: Whether to concatenate all layers' encodings, or use just final layer encoding
-    """
-    pooling: Optional[Callable[[Tensor, Tensor], Tensor]]
-    fully: bool
-
-    def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False,
-                 pooling: Optional[Callable[[Tensor, Tensor], Tensor]] = None, fully: bool = False, **kwargs):
-        super().__init__(num_layers, in_features, hidden_features, bias, **kwargs)
-        self.pooling = pooling
-        self.fully = fully
-
-    def forward(self, edge_index: Adj, input: Tensor, initial_state: Optional[Union[List[Tensor], Tensor]] = None,
-                batch: Optional[Tensor] = None) -> Tensor:
-        """
-        Encode input
-
-        :param edge_index: Adjacency
-        :param input: Input graph signal (time × nodes × in_features)
-        :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
-        :param batch: Batch index (optional)
-        :return: Encoding (samples × dim)
-        """
-        if initial_state is None:
-            state = [torch.zeros(input.shape[1], layer.out_features).to(input) for layer in self.layers]
-        elif len(initial_state) != self.num_layers and initial_state.dim() == 2:
-            state = [initial_state] * self.num_layers
-        else:
-            state = initial_state
-        for t in range(input.shape[0]):
-            state[0] = self.layers[0](edge_index, input[t], state[0])
-            for i in range(1, self.num_layers):
-                state[i] = self.layers[i](edge_index, state[i - 1], state[i])
-        if self.fully:
-            return torch.cat([self.pooling(x, batch) if self.pooling else x for x in state], dim=-1)
-        else:
-            return self.pooling(state[-1], batch) if self.pooling else state[-1]
-
-    @property
-    def out_features(self) -> int:
-        """Embedding dimension"""
-        return sum(layer.out_features for layer in self.layers) if self.fully else self.layers[-1].out_features
-
-
 class DynamicGraphReservoir(GraphReservoir):
     """
     Reservoir for discrete-time dynamic temporal graphs
@@ -292,12 +239,12 @@ class DynamicGraphReservoir(GraphReservoir):
         self.pooling = pooling
         self.fully = fully
 
-    def forward(self, edge_index: List[Adj], input: Tensor, initial_state: Optional[Union[List[Tensor], Tensor]] = None,
+    def forward(self, edge_index: Union[List[Adj], Adj], input: Tensor, initial_state: Optional[Union[List[Tensor], Tensor]] = None,
                 batch: Optional[Tensor] = None) -> Tensor:
         """
         Encode input
 
-        :param edge_index: Sequence of adjacency matrices (time × Adj)
+        :param edge_index: Sequence of adjacency matrices (time × Adj), or Adjacency in the case of the spatio-temporal setting
         :param input: Input graph signal (time × nodes × in_features)
         :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
         :param batch: Batch index (optional)
@@ -312,7 +259,11 @@ class DynamicGraphReservoir(GraphReservoir):
         for t in range(input.shape[0]):
             state[0] = self.layers[0](edge_index[t], input[t], state[0])
             for i in range(1, self.num_layers):
-                state[i] = self.layers[i](edge_index[t], state[i - 1], state[i])
+                if isinstance(edge_index, list):
+                    adj = edge_index[t]
+                else:
+                    adj = edge_index
+                state[i] = self.layers[i](adj, state[i - 1], state[i])
         if self.fully:
             return torch.cat([self.pooling(x, batch) if self.pooling else x for x in state], dim=-1)
         else:
