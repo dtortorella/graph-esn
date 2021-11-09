@@ -27,7 +27,7 @@ dataset = Planetoid(root=args.root, name=args.dataset)
 device = torch.device(args.device)
 data = dataset[0].to(device)
 
-alpha = torch.linalg.matrix_norm(to_dense_adj(data.edge_index))
+alpha = torch.linalg.matrix_norm(to_dense_adj(data.edge_index), ord=2)
 print(f'graph alpha = {float(alpha):.2f}')
 
 reservoir = StaticGraphReservoir(num_layers=args.layers, in_features=dataset.num_features, hidden_features=args.units,
