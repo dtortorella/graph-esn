@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections import UserList
 from typing import List, Any
 
-from torch_geometric.data import Data
+from torch import Tensor
+from torch_geometric.data import Data, Batch
 
 
 class TemporalData(Data):
@@ -37,3 +39,52 @@ class TemporalData(Data):
     @staticmethod
     def from_data(data: Data, temporal_keys: List[str] = ['x']) -> TemporalData:
         return TemporalData(temporal_keys=temporal_keys, **data.to_dict())
+
+
+class DynamicData(object):
+    def __init__(self, static_keys: List[str] = [], **stuff):
+        self._static_keys = static_keys
+        self._storage = stuff
+
+    def __getitem__(self, t: int):
+        return Data(**{key: value if key in self._static_keys else value[t] for key, value in self._storage.items()})
+
+    def __getattr__(self, key: str):
+        if key in self.keys:
+            return self._storage[key]
+        else:
+            raise AttributeError(f"No attribute '{key}'")
+
+    @property
+    def keys(self) -> List[str]:
+        return list(self._storage.keys())
+
+    @property
+    def num_timesteps(self) -> int:
+        return len(self._storage[[key for key in self.keys if key not in self._static_keys][0]])
+
+    def to(self, *args, **kwargs):
+        for key in self.keys:
+            if isinstance(self._storage[key], Tensor):
+                self._storage[key] = self._storage[key].to(*args, **kwargs)
+            else:
+                for t in range(len(self._storage[key])):
+                    self._storage[key][t] = self._storage[key][t].to(*args, **kwargs)
+        return self
+
+    def __repr__(self):
+        return f"DynamicData({', '.join(self.keys)})"
+
+
+class DynamicBatch(UserList):
+    def __init__(self, data: List[DynamicData]):
+        super().__init__()
+        self.data = [Batch.from_data_list([sample[t] for sample in data]) for t in range(data[0].num_timesteps)]
+
+    def to(self, *args, **kwargs):
+        for t in range(len(self)):
+            self.data[t] = self.data[t].to(*args, **kwargs)
+        return self
+
+    def __repr__(self):
+        return f'DynamicBatch[{len(self)}]'
