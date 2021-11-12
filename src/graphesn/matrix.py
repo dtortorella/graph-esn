@@ -66,6 +66,24 @@ def ring(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
     return W.data
 
 
+def ones(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
+         scale: Optional[float] = None) -> Tensor:
+    """
+    Ones tensor
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A random tensor
+    """
+    W = torch.ones(size)
+    rescale_(W, rho, sigma, scale)
+    return W.data
+
+
 def rescale_(W: Tensor, rho: Optional[float] = None, sigma: Optional[float] = None,
              scale: Optional[float] = None) -> Tensor:
     """
