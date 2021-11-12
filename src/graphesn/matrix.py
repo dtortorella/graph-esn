@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import Size, Tensor
 
-__all__ = ['uniform', 'normal', 'ring', 'rescale_']
+__all__ = ['uniform', 'normal', 'ring', 'ones', 'rescale_']
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
