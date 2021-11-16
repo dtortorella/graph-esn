@@ -1,4 +1,4 @@
 from .readout import Readout
-from .reservoir import initializer, StaticGraphReservoir, TemporalGraphReservoir, DynamicGraphReservoir
+from .reservoir import initializer, StaticGraphReservoir, DynamicGraphReservoir
 
-__all__ = ['StaticGraphReservoir', 'TemporalGraphReservoir', 'DynamicGraphReservoir', 'initializer', 'Readout']
+__all__ = ['StaticGraphReservoir', 'DynamicGraphReservoir', 'initializer', 'Readout']
