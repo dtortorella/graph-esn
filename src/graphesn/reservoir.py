@@ -239,9 +239,9 @@ class DynamicGraphReservoir(GraphReservoir):
         self.pooling = pooling
         self.fully = fully
 
-    def forward(self, edge_index: Union[List[Adj], Adj], input: Tensor,
+    def forward(self, edge_index: Union[List[Adj], Adj], input: Union[Tensor, List[Tensor]],
                 initial_state: Optional[Union[List[Tensor], Tensor]] = None,
-                batch: Optional[Tensor] = None) -> Tensor:
+                batch: Optional[Tensor] = None, mask: Optional[List[Tensor]] = None) -> Tensor:
         """
         Encode input
 
@@ -249,19 +249,22 @@ class DynamicGraphReservoir(GraphReservoir):
         :param input: Input graph signal (time × nodes × in_features)
         :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
         :param batch: Batch index (optional)
+        :param mask: Sequence of node masks (optional, useful for padding dynamic graphs with different lengths)
         :return: Encoding (samples × dim)
         """
         if initial_state is None:
-            state = [torch.zeros(input.shape[1], layer.out_features).to(input) for layer in self.layers]
+            num_nodes = input[0].shape[0] if isinstance(input, list) else input.shape[1]
+            state = [torch.zeros(num_nodes, layer.out_features).to(input[0]) for layer in self.layers]
         elif len(initial_state) != self.num_layers and initial_state.dim() == 2:
             state = [initial_state] * self.num_layers
         else:
             state = initial_state
-        for t in range(input.shape[0]):
+        for t in range(len(input)):
             state[0] = self.layers[0](edge_index[t], input[t], state[0])
             edge_index_t = edge_index[t] if isinstance(edge_index, list) else edge_index
+            mask_t = mask[t] if mask else slice(None)
             for i in range(1, self.num_layers):
-                state[i] = self.layers[i](edge_index_t, state[i - 1], state[i])
+                state[i][mask_t] = self.layers[i](edge_index_t, state[i - 1], state[i])[mask_t]
         if self.fully:
             return torch.cat([self.pooling(x, batch) if self.pooling else x for x in state], dim=-1)
         else:
