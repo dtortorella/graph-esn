@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch import Tensor, Size
 from torch.nn import Module, Parameter, ModuleList
 from torch_geometric.nn import MessagePassing
-from torch_geometric.typing import Adj
+from torch_geometric.typing import Adj, OptTensor
 from torch_sparse import matmul, SparseTensor
 
 from graphesn import matrix
@@ -49,14 +49,14 @@ class ReservoirConvLayer(MessagePassing):
         self.bias = Parameter(torch.empty(hidden_features), requires_grad=False) if bias else None
         self.activation = activation if callable(activation) else getattr(torch, activation)
 
-    def forward(self, edge_index: Adj, input: Tensor, state: Tensor):
-        neighbour_aggr = self.propagate(edge_index=edge_index, x=state)
+    def forward(self, edge_index: Adj, input: Tensor, state: Tensor, edge_weight: OptTensor = None):
+        neighbour_aggr = self.propagate(edge_index=edge_index, x=state, edge_weight=edge_weight)
         return self.leakage * self.activation(
             F.linear(input, self.input_weight, self.bias) + F.linear(neighbour_aggr, self.recurrent_weight)) \
                + (1 - self.leakage) * state
 
-    def message(self, x_j: Tensor) -> Tensor:
-        return x_j
+    def message(self, x_j: Tensor, edge_weight: OptTensor = None) -> Tensor:
+        return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
 
     def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
         return matmul(adj_t, x, self.aggr)
@@ -168,11 +168,12 @@ class StaticGraphReservoir(GraphReservoir):
         self.epsilon = epsilon
 
     def forward(self, edge_index: Adj, input: Tensor, initial_state: Optional[Union[List[Tensor], Tensor]] = None,
-                batch: Optional[Tensor] = None) -> Tensor:
+                batch: OptTensor = None, edge_weight: OptTensor = None) -> Tensor:
         """
         Encode input
 
         :param edge_index: Adjacency
+        :param edge_weight: Edges weight (optional)
         :param input: Input graph signal (nodes × in_features)
         :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
         :param batch: Batch index (optional)
@@ -182,20 +183,21 @@ class StaticGraphReservoir(GraphReservoir):
             initial_state = [torch.zeros(input.shape[0], layer.out_features).to(input) for layer in self.layers]
         elif len(initial_state) != self.num_layers and initial_state.dim() == 2:
             initial_state = [initial_state] * self.num_layers
-        embeddings = []
-        embeddings.append(self._embed(edge_index, input, initial_state[0], self.layers[0]))
+        embeddings = [self._embed(self.layers[0], edge_index, edge_weight, input, initial_state[0])]
         for i in range(1, self.num_layers):
-            embeddings.append(self._embed(edge_index, embeddings[-1], initial_state[i], self.layers[i]))
+            embeddings.append(self._embed(self.layers[i], edge_index, embeddings[-1], edge_weight, initial_state[i]))
         if self.fully:
             return torch.cat([self.pooling(x, batch) if self.pooling else x for x in embeddings], dim=-1)
         else:
             return self.pooling(embeddings[-1], batch) if self.pooling else embeddings[-1]
 
-    def _embed(self, edge_index: Adj, input: Tensor, initial_state: Tensor, layer: ReservoirConvLayer) -> Tensor:
+    def _embed(self, layer: ReservoirConvLayer, edge_index: Adj, edge_weight: OptTensor, input: Tensor,
+               initial_state: Tensor) -> Tensor:
         """
         Compute node embeddings for a single layer
 
         :param edge_index: Adjacency
+        :param edge_weight: Edges weight (optional)
         :param input: Input graph signal (nodes × in_features)
         :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
         :param layer: Reservoir layer
@@ -204,7 +206,7 @@ class StaticGraphReservoir(GraphReservoir):
         iterations = 0
         old_state = initial_state
         while True:
-            state = layer(edge_index, input, old_state)
+            state = layer(edge_index, input, old_state, edge_weight)
             if self.max_iterations and iterations >= self.max_iterations:
                 break
             if torch.norm(old_state - state) < self.epsilon:
@@ -241,11 +243,13 @@ class DynamicGraphReservoir(GraphReservoir):
 
     def forward(self, edge_index: Union[List[Adj], Adj], input: Union[Tensor, List[Tensor]],
                 initial_state: Optional[Union[List[Tensor], Tensor]] = None,
-                batch: Optional[Tensor] = None, mask: Optional[List[Tensor]] = None) -> Tensor:
+                batch: OptTensor = None, edge_weight: Optional[Union[List[Tensor], Tensor]] = None,
+                mask: Optional[List[Tensor]] = None) -> Tensor:
         """
         Encode input
 
         :param edge_index: Sequence of adjacency matrices (time × Adj), or Adj in the case of the spatio-temporal setting
+        :param edge_weight: Optional sequence of edge weights, or fixed edge weights for the spatio-temporal setting
         :param input: Input graph signal (time × nodes × in_features)
         :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
         :param batch: Batch index (optional)
@@ -260,11 +264,12 @@ class DynamicGraphReservoir(GraphReservoir):
         else:
             state = initial_state
         for t in range(len(input)):
-            state[0] = self.layers[0](edge_index[t], input[t], state[0])
             edge_index_t = edge_index[t] if isinstance(edge_index, list) else edge_index
+            edge_weight_t = edge_weight[t] if isinstance(edge_weight, list) else edge_weight
             mask_t = mask[t] if mask else slice(None)
+            state[0] = self.layers[0](edge_index_t, input[t], state[0], edge_weight_t)[mask_t]
             for i in range(1, self.num_layers):
-                state[i][mask_t] = self.layers[i](edge_index_t, state[i - 1], state[i])[mask_t]
+                state[i][mask_t] = self.layers[i](edge_index_t, state[i - 1], state[i], edge_weight_t)[mask_t]
         if self.fully:
             return torch.cat([self.pooling(x, batch) if self.pooling else x for x in state], dim=-1)
         else:
