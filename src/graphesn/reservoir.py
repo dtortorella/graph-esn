@@ -196,11 +196,11 @@ class StaticGraphReservoir(GraphReservoir):
         """
         Compute node embeddings for a single layer
 
+        :param layer: Reservoir layer
         :param edge_index: Adjacency
         :param edge_weight: Edges weight (optional)
         :param input: Input graph signal (nodes × in_features)
         :param initial_state: Initial state (nodes × hidden_features) for all reservoir layers, default zeros
-        :param layer: Reservoir layer
         :return: Encoding (nodes × dim)
         """
         iterations = 0
@@ -231,15 +231,18 @@ class DynamicGraphReservoir(GraphReservoir):
     :param bias: Whether bias term is present
     :param pooling: Graph pooling function (optional, default no pooling)
     :param fully: Whether to concatenate all layers' encodings, or use just final layer encoding
+    :param return_sequences: Return the sequence of states instead of just the final states (default false)
     """
     pooling: Optional[Callable[[Tensor, Tensor], Tensor]]
     fully: bool
 
     def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False,
-                 pooling: Optional[Callable[[Tensor, Tensor], Tensor]] = None, fully: bool = False, **kwargs):
+                 pooling: Optional[Callable[[Tensor, Tensor], Tensor]] = None, fully: bool = False,
+                 return_sequences: bool = False, **kwargs):
         super().__init__(num_layers, in_features, hidden_features, bias, **kwargs)
         self.pooling = pooling
         self.fully = fully
+        self.return_sequences = return_sequences
 
     def forward(self, edge_index: Union[List[Adj], Adj], input: Union[Tensor, List[Tensor]],
                 initial_state: Optional[Union[List[Tensor], Tensor]] = None,
@@ -263,17 +266,65 @@ class DynamicGraphReservoir(GraphReservoir):
             state = [initial_state] * self.num_layers
         else:
             state = initial_state
+        if self.return_sequences:
+            return self._embed_sequence(edge_index, edge_weight, input, state, mask, batch)
+        else:
+            return self._embed_final(edge_index, edge_weight, input, state, mask, batch)
+
+    def _embed_final(self, edge_index: Union[List[Adj], Adj], edge_weight: Optional[Union[List[Tensor], Tensor]],
+                     input: Union[Tensor, List[Tensor]], state: List[Tensor], mask: Optional[List[Tensor]],
+                     batch: OptTensor) -> Tensor:
+        """
+        Compute final-state embedding
+
+        :param edge_index: Sequence of adjacency matrices (time × Adj), or Adj in the case of the spatio-temporal setting
+        :param edge_weight: Optional sequence of edge weights, or fixed edge weights for the spatio-temporal setting
+        :param input: Input graph signal (time × nodes × in_features)
+        :param state: Initial state (nodes × hidden_features) for all reservoir layers
+        :param mask: Sequence of node masks (optional, useful for padding dynamic graphs with different lengths)
+        :param batch: Batch index (optional)
+        :return: Encoding (samples × dim)
+        """
         for t in range(len(input)):
             edge_index_t = edge_index[t] if isinstance(edge_index, list) else edge_index
             edge_weight_t = edge_weight[t] if isinstance(edge_weight, list) else edge_weight
             mask_t = mask[t] if mask else slice(None)
-            state[0] = self.layers[0](edge_index_t, input[t], state[0], edge_weight_t)[mask_t]
+            state[0][mask_t] = self.layers[0](edge_index_t, input[t], state[0], edge_weight_t)[mask_t]
             for i in range(1, self.num_layers):
                 state[i][mask_t] = self.layers[i](edge_index_t, state[i - 1], state[i], edge_weight_t)[mask_t]
         if self.fully:
             return torch.cat([self.pooling(x, batch) if self.pooling else x for x in state], dim=-1)
         else:
             return self.pooling(state[-1], batch) if self.pooling else state[-1]
+
+    def _embed_sequence(self, edge_index: Union[List[Adj], Adj], edge_weight: Optional[Union[List[Tensor], Tensor]],
+                        input: Union[Tensor, List[Tensor]], state: List[Tensor], mask: Optional[List[Tensor]],
+                        batch: OptTensor) -> Tensor:
+        """
+        Compute sequence-to-sequence embedding
+
+        :param edge_index: Sequence of adjacency matrices (time × Adj), or Adj in the case of the spatio-temporal setting
+        :param edge_weight: Optional sequence of edge weights, or fixed edge weights for the spatio-temporal setting
+        :param input: Input graph signal (time × nodes × in_features)
+        :param state: Initial state (nodes × hidden_features) for all reservoir layers
+        :param mask: Sequence of node masks (optional, useful for padding dynamic graphs with different lengths)
+        :param batch: Batch index (optional)
+        :return: Encoding (time × samples × dim)
+        """
+        size = int(batch.max().item() + 1) if self.pooling else state[0].shape[0]
+        embeddings = torch.zeros(len(input), size, self.out_features).to(input[0])
+        for t in range(len(input)):
+            edge_index_t = edge_index[t] if isinstance(edge_index, list) else edge_index
+            edge_weight_t = edge_weight[t] if isinstance(edge_weight, list) else edge_weight
+            mask_t = mask[t] if mask else slice(None)
+            state[0][mask_t] = self.layers[0](edge_index_t, input[t], state[0], edge_weight_t)[mask_t]
+            for i in range(1, self.num_layers):
+                state[i][mask_t] = self.layers[i](edge_index_t, state[i - 1], state[i], edge_weight_t)[mask_t]
+            if self.fully:
+                embeddings[t] = torch.cat([self.pooling(x, batch) if self.pooling else x for x in state], dim=-1)
+            else:
+                embeddings[t] = self.pooling(state[-1], batch) if self.pooling else state[-1]
+        return embeddings
 
     @property
     def out_features(self) -> int:
