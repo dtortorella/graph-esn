@@ -87,6 +87,9 @@ class ReservoirConvLayer(MessagePassing):
         """Reservoir state dimension"""
         return self.input_weight.shape[0]
 
+    def extra_repr(self) -> str:
+        return f'in={self.in_features}, out={self.out_features}, bias={self.bias is not None}'
+
 
 class GraphReservoir(Module):
     """
@@ -330,3 +333,6 @@ class DynamicGraphReservoir(GraphReservoir):
     def out_features(self) -> int:
         """Embedding dimension"""
         return sum(layer.out_features for layer in self.layers) if self.fully else self.layers[-1].out_features
+
+    def extra_repr(self) -> str:
+        return f'return_sequences={self.return_sequences}'
