@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Optional, Callable, Union, List
 
 import torch
@@ -270,9 +271,9 @@ class DynamicGraphReservoir(GraphReservoir):
         else:
             state = initial_state
         if self.return_sequences:
-            return self._embed_sequence(edge_index, edge_weight, input, state, mask, batch)
+            return self._embed_sequence(edge_index, edge_weight, input, deepcopy(state), mask, batch)
         else:
-            return self._embed_final(edge_index, edge_weight, input, state, mask, batch)
+            return self._embed_final(edge_index, edge_weight, input, deepcopy(state), mask, batch)
 
     def _embed_final(self, edge_index: Union[List[Adj], Adj], edge_weight: Optional[Union[List[Tensor], Tensor]],
                      input: Union[Tensor, List[Tensor]], state: List[Tensor], mask: Optional[List[Tensor]],
