@@ -7,7 +7,7 @@ from torch_geometric.utils import to_dense_adj
 
 from graphesn import DynamicData
 
-__all__ = ['compute_graph_alpha', 'compute_dynamic_weighted_graph_alpha']
+__all__ = ['compute_graph_alpha', 'compute_graph_alpha', 'compute_dynamic_weighted_graph_alpha']
 
 
 def compute_graph_alpha(edge_index: Adj, edge_weight: OptTensor = None):
