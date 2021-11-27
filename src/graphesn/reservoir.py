@@ -291,7 +291,7 @@ class DynamicGraphReservoir(GraphReservoir):
         for t in range(len(input)):
             edge_index_t = edge_index[t] if isinstance(edge_index, list) else edge_index
             edge_weight_t = edge_weight[t] if isinstance(edge_weight, list) else edge_weight
-            mask_t = mask[t] if mask else slice(None)
+            mask_t = slice(None) if mask is None else mask[t]
             state[0][mask_t] = self.layers[0](edge_index_t, input[t], state[0], edge_weight_t)[mask_t]
             for i in range(1, self.num_layers):
                 state[i][mask_t] = self.layers[i](edge_index_t, state[i - 1], state[i], edge_weight_t)[mask_t]
@@ -319,7 +319,7 @@ class DynamicGraphReservoir(GraphReservoir):
         for t in range(len(input)):
             edge_index_t = edge_index[t] if isinstance(edge_index, list) else edge_index
             edge_weight_t = edge_weight[t] if isinstance(edge_weight, list) else edge_weight
-            mask_t = mask[t] if mask else slice(None)
+            mask_t = slice(None) if mask is None else mask[t]
             state[0][mask_t] = self.layers[0](edge_index_t, input[t], state[0], edge_weight_t)[mask_t]
             for i in range(1, self.num_layers):
                 state[i][mask_t] = self.layers[i](edge_index_t, state[i - 1], state[i], edge_weight_t)[mask_t]
