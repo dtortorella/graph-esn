@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Optional, Callable, Union, List
 
 import torch
@@ -267,13 +266,13 @@ class DynamicGraphReservoir(GraphReservoir):
             num_nodes = input[0].shape[0] if isinstance(input, list) else input.shape[1]
             state = [torch.zeros(num_nodes, layer.out_features).to(input[0]) for layer in self.layers]
         elif len(initial_state) != self.num_layers and initial_state.dim() == 2:
-            state = [initial_state] * self.num_layers
+            state = [initial_state.clone() for _ in range(self.num_layers)]
         else:
-            state = initial_state
+            state = [x.clone() for x in initial_state]
         if self.return_sequences:
-            return self._embed_sequence(edge_index, edge_weight, input, deepcopy(state), mask, batch)
+            return self._embed_sequence(edge_index, edge_weight, input, state, mask, batch)
         else:
-            return self._embed_final(edge_index, edge_weight, input, deepcopy(state), mask, batch)
+            return self._embed_final(edge_index, edge_weight, input, state, mask, batch)
 
     def _embed_final(self, edge_index: Union[List[Adj], Adj], edge_weight: Optional[Union[List[Tensor], Tensor]],
                      input: Union[Tensor, List[Tensor]], state: List[Tensor], mask: Optional[List[Tensor]],
