@@ -36,7 +36,8 @@ The library is contained in folder `src/graphesn`:
 The `examples` folder contains demos for our library on some common graph datasets.
 
 ## Contributing
-*This research software is provided **as-is***. We are working on this library in our spare time.
+***This research software is provided as-is***. We are working on this library in our spare time.
+
 Code is released under the MIT license, see `LICENSE` for details.
 
 If you find a bug, please open an issue to report it, and we will do our best to solve it. For general or technical questions, please email us rather than opening an issue.
