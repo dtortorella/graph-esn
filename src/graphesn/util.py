@@ -4,10 +4,12 @@ from typing import Union, List
 import torch.linalg
 from torch_geometric.typing import Adj, OptTensor
 from torch_geometric.utils import to_dense_adj
+from torch_sparse import SparseTensor
 
 from graphesn import DynamicData
 
-__all__ = ['compute_graph_alpha', 'compute_graph_alpha', 'compute_dynamic_weighted_graph_alpha']
+__all__ = ['compute_graph_alpha', 'approximate_graph_alpha',
+           'compute_dynamic_graph_alpha', 'compute_dynamic_weighted_graph_alpha']
 
 
 def compute_graph_alpha(edge_index: Adj, edge_weight: OptTensor = None):
@@ -19,6 +21,28 @@ def compute_graph_alpha(edge_index: Adj, edge_weight: OptTensor = None):
     :return: Spectral norm
     """
     return float(torch.linalg.matrix_norm(to_dense_adj(edge_index, edge_attr=edge_weight), ord=2))
+
+
+def approximate_graph_alpha(adj: SparseTensor, max_iterations: int = 1000, threshold: float = 1e-6):
+    """
+    Spectral norm of a graph via power method iteration
+
+    :param adj: Sparse adjacency matrix
+    :param max_iterations: Maximum number of power iterations
+    :param threshold: Convergence threshold for dominant eigenvector
+    :return: Spectral radius
+    """
+    u = torch.rand(adj.size(0), 1).to(adj.device())
+    u /= torch.linalg.vector_norm(u)
+    for _ in range(max_iterations):
+        v = adj.matmul(u)
+        v /= torch.linalg.vector_norm(v)
+        if torch.linalg.vector_norm(v - u) < threshold:
+            break
+        else:
+            u = v
+    alpha = (adj.matmul(v).t() @ v) / (v.t() @ v)
+    return alpha.item()
 
 
 def compute_dynamic_graph_alpha(data_list: Union[DynamicData, List[Adj]], ignore_disconnected: bool = True):
