@@ -188,7 +188,7 @@ class StaticGraphReservoir(GraphReservoir):
             initial_state = [initial_state] * self.num_layers
         embeddings = [self._embed(self.layers[0], edge_index, edge_weight, input, initial_state[0])]
         for i in range(1, self.num_layers):
-            embeddings.append(self._embed(self.layers[i], edge_index, embeddings[-1], edge_weight, initial_state[i]))
+            embeddings.append(self._embed(self.layers[i], edge_index, edge_weight, embeddings[-1], initial_state[i]))
         if self.fully:
             return torch.cat([self.pooling(x, batch) if self.pooling else x for x in embeddings], dim=-1)
         else:
