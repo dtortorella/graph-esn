@@ -8,11 +8,11 @@ from torch_sparse import SparseTensor
 
 from graphesn import DynamicData
 
-__all__ = ['compute_graph_alpha', 'approximate_graph_alpha',
+__all__ = ['graph_spectral_norm', 'approximate_graph_spectral_radius',
            'compute_dynamic_graph_alpha', 'compute_dynamic_weighted_graph_alpha']
 
 
-def compute_graph_alpha(edge_index: Adj, edge_weight: OptTensor = None):
+def graph_spectral_norm(edge_index: Adj, edge_weight: OptTensor = None):
     """
     Spectral norm of a graph
 
@@ -23,9 +23,9 @@ def compute_graph_alpha(edge_index: Adj, edge_weight: OptTensor = None):
     return float(torch.linalg.matrix_norm(to_dense_adj(edge_index, edge_attr=edge_weight), ord=2))
 
 
-def approximate_graph_alpha(adj: SparseTensor, max_iterations: int = 1000, threshold: float = 1e-6):
+def approximate_graph_spectral_radius(adj: SparseTensor, max_iterations: int = 1000, threshold: float = 1e-6):
     """
-    Spectral norm of a graph via power method iteration
+    Spectral radius of a graph via power method iteration
 
     :param adj: Sparse adjacency matrix
     :param max_iterations: Maximum number of power iterations
@@ -55,7 +55,7 @@ def compute_dynamic_graph_alpha(data_list: Union[DynamicData, List[Adj]], ignore
     """
     if isinstance(data_list, DynamicData):
         data_list = [data_list[t].edge_index for t in range(data_list.num_timesteps)]
-    alphas = [compute_graph_alpha(edge_index) for edge_index in data_list if
+    alphas = [graph_spectral_norm(edge_index) for edge_index in data_list if
               not ignore_disconnected or edge_index.shape[1] > 0]
     return statistics.geometric_mean(alphas)
 
@@ -68,6 +68,6 @@ def compute_dynamic_weighted_graph_alpha(data: DynamicData, ignore_disconnected:
     :param ignore_disconnected: Whether to ignore timesteps without edges (default true)
     :return: Geometric mean of alphas
     """
-    alphas = [compute_graph_alpha(data[t].edge_index, data[t].edge_weight) for t in range(data.num_timesteps) if
+    alphas = [graph_spectral_norm(data[t].edge_index, data[t].edge_weight) for t in range(data.num_timesteps) if
               not ignore_disconnected or data[t].edge_index.shape[1] > 0]
     return statistics.geometric_mean(alphas)
