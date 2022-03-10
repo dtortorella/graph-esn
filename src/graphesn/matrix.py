@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import Size, Tensor
 
-__all__ = ['uniform', 'normal', 'ring', 'ones', 'rescale_']
+__all__ = ['uniform', 'normal', 'ring', 'ones', 'zeros', 'rescale_']
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
@@ -81,6 +81,23 @@ def ones(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
     """
     W = torch.ones(size)
     rescale_(W, rho, sigma, scale)
+    return W.data
+
+
+def zeros(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
+         scale: Optional[float] = None) -> Tensor:
+    """
+    Zeros tensor
+
+    Rescaling is meaningless in this case.
+
+    :param size: Size of tensor
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A random tensor
+    """
+    W = torch.zeros(size)
     return W.data
 
 
