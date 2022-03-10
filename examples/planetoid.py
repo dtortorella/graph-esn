@@ -3,8 +3,8 @@ import argparse
 import torch
 from torch.nn.functional import one_hot
 from torch_geometric.datasets import Planetoid
-from torch_geometric.utils import to_dense_adj
 from graphesn import StaticGraphReservoir, initializer, Readout
+from graphesn.util import graph_spectral_norm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', help='dataset name')
@@ -27,7 +27,7 @@ dataset = Planetoid(root=args.root, name=args.dataset)
 device = torch.device(args.device)
 data = dataset[0].to(device)
 
-alpha = torch.linalg.matrix_norm(to_dense_adj(data.edge_index), ord=2)
+alpha = graph_spectral_norm(data.edge_index)
 print(f'graph alpha = {float(alpha):.2f}')
 
 reservoir = StaticGraphReservoir(num_layers=args.layers, in_features=dataset.num_features, hidden_features=args.units,
