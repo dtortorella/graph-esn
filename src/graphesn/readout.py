@@ -1,3 +1,4 @@
+import sys
 from typing import Tuple, Iterator, Optional, List, Callable, Union
 
 import torch
@@ -33,18 +34,20 @@ class Readout(Module):
 
     def fit(self, data: Union[Iterator[Tuple[Tensor, Tensor]], Tuple[Tensor, Tensor]],
             regularization: Union[Optional[float], List[float]] = None,
-            validate: Optional[Callable[[Tuple[Tensor, Tensor]], float]] = None):
+            validate: Optional[Callable[[Tuple[Tensor, Tensor]], float]] = None,
+            verbose: bool = False):
         """
         Fit readout to data
 
         :param data: Dataset of (features, targets) tuples, or single pair
         :param regularization: Ridge regression lambda, or lambda if validation requested
         :param validate: Validation function, if regularization is to be selected
+        :param verbose: Whether to print validation info (default false)
         """
         if not hasattr(data, '__next__'):
             data = iter([data])
         if callable(validate):
-            self.weight.data, self.bias.data = fit_and_validate_readout(data, regularization, validate)
+            self.weight.data, self.bias.data = fit_and_validate_readout(data, regularization, validate, verbose)
         else:
             self.weight.data, self.bias.data = fit_readout(data, regularization)
 
@@ -113,7 +116,8 @@ def fit_readout(data: Iterator[Tuple[Tensor, Tensor]], regularization: Optional[
 
 
 def fit_and_validate_readout(data: Iterator[Tuple[Tensor, Tensor]], regularization_constants: List[float],
-                             get_validation_error: Callable[[Tuple[Tensor, Tensor]], float]) -> Tuple[Tensor, Tensor]:
+                             get_validation_error: Callable[[Tuple[Tensor, Tensor]], float],
+                             verbose: bool = False) -> Tuple[Tensor, Tensor]:
     """
     Ridge regression for big data, with efficient regularization selection
 
@@ -125,6 +129,7 @@ def fit_and_validate_readout(data: Iterator[Tuple[Tensor, Tensor]], regularizati
     :param data: Batch dataset of pairs (x, y) with samples on rows
     :param regularization_constants: Regularization constants for ridge regression (including none)
     :param get_validation_error: Evaluate validation error for a regression pair (W, b)
+    :param verbose: Whether to print validation info (default false)
     :return: A pair of tensors (W, b)
     """
     # Compute sufficient statistics for regression
@@ -159,5 +164,6 @@ def fit_and_validate_readout(data: Iterator[Tuple[Tensor, Tensor]], regularizati
         validation_error = get_validation_error((W.t(), b))
         if best_validation_error is None or validation_error < best_validation_error:
             best_validation_error, best_W, best_b = validation_error, W.t(), b
-        print(f'   {regularization:e}: {validation_error}')
+        if verbose:
+            print(f'{regularization:e}: {validation_error}', file=sys.stderr)
     return best_W, best_b
