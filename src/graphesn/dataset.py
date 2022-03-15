@@ -89,7 +89,7 @@ class TGKDataset:
         return f'{self.name}({len(self.data)})'
 
 
-def chickenpox_dataset(target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
+def chickenpox_dataset(target_lags: int = 1, feature_lags: bool = True) -> TemporalData:
     """
     Chickenpox temporal graph dataset
 
@@ -138,7 +138,7 @@ def twitter_tennis_dataset(event_id: str = 'rg17', num_nodes: Optional[int] = No
                            [torch.from_numpy(y.astype('float32')).unsqueeze(dim=-1) for y in dataset.targets], dim=0))
 
 
-def pedalme_dataset(target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
+def pedalme_dataset(target_lags: int = 1, feature_lags: bool = True) -> TemporalData:
     """
     PedalMe temporal graph dataset
 
@@ -162,7 +162,7 @@ def pedalme_dataset(target_lags: int = 8, feature_lags: bool = True) -> Temporal
                             [torch.from_numpy(y.astype('float32')).unsqueeze(dim=-1) for y in dataset.targets], dim=0))
 
 
-def wiki_maths_dataset(target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
+def wiki_maths_dataset(target_lags: int = 1, feature_lags: bool = True) -> TemporalData:
     """
     Wiki Maths temporal graph dataset
 
@@ -186,7 +186,7 @@ def wiki_maths_dataset(target_lags: int = 8, feature_lags: bool = True) -> Tempo
                             [torch.from_numpy(y.astype('float32')).unsqueeze(dim=-1) for y in dataset.targets], dim=0))
 
 
-def windmill_output_dataset(dataset: str = 'large', target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
+def windmill_output_dataset(dataset: str = 'large', target_lags: int = 1, feature_lags: bool = True) -> TemporalData:
     """
     Windmill output temporal graph datasets
 
@@ -273,7 +273,7 @@ def pems_bay_dataset(root: str = '/tmp', feature_lags: int = 1, target_steps: in
                             [torch.from_numpy(y.astype('float32')) for y in dataset.targets], dim=0))
 
 
-def england_covid_dataset(target_lags: int = 8, feature_lags: bool = True) -> DynamicData:
+def england_covid_dataset(target_lags: int = 1, feature_lags: bool = True) -> DynamicData:
     """
     England Covid dynamic graph dataset
 
@@ -297,7 +297,7 @@ def england_covid_dataset(target_lags: int = 8, feature_lags: bool = True) -> Dy
                            [torch.from_numpy(y.astype('float32')).unsqueeze(dim=-1) for y in dataset.targets], dim=0))
 
 
-def montevideo_bus_dataset(target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
+def montevideo_bus_dataset(target_lags: int = 1, feature_lags: bool = True) -> TemporalData:
     """
     Montevideo bus temporal graph dataset
 
