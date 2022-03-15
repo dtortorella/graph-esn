@@ -5,13 +5,15 @@ import numpy as np
 import pandas as pd
 import torch
 from torch_geometric.data import download_url, extract_zip
-from torch_geometric_temporal import TwitterTennisDatasetLoader, PedalMeDatasetLoader, WikiMathsDatasetLoader
-from torch_geometric_temporal.dataset import ChickenpoxDatasetLoader
+from torch_geometric_temporal.dataset import ChickenpoxDatasetLoader, TwitterTennisDatasetLoader, PedalMeDatasetLoader, \
+    WikiMathsDatasetLoader, WindmillOutputLargeDatasetLoader, WindmillOutputMediumDatasetLoader, \
+    WindmillOutputSmallDatasetLoader
 from tqdm import tqdm
 
 from graphesn.data import DynamicData, TemporalData
 
-__all__ = ['TGKDataset', 'chickenpox_dataset', 'twitter_tennis_dataset', 'pedalme_dataset', 'wiki_maths_dataset']
+__all__ = ['TGKDataset', 'chickenpox_dataset', 'twitter_tennis_dataset', 'pedalme_dataset', 'wiki_maths_dataset',
+           'windmill_output_dataset']
 
 
 class TGKDataset:
@@ -172,6 +174,39 @@ def wiki_maths_dataset(target_lags: int = 8, feature_lags: bool = True) -> Tempo
     :return: A single temporal graph
     """
     loader = WikiMathsDatasetLoader()
+    dataset = loader.get_dataset(lags=target_lags)
+    return TemporalData(temporal_keys=['x', 'y'],
+                        edge_index=torch.from_numpy(dataset.edge_index),
+                        edge_weight=torch.from_numpy(dataset.edge_weight.astype('float32')),
+                        x=torch.stack([torch.from_numpy(x.astype('float32')) if feature_lags else torch.from_numpy(
+                            x[:, 0].astype('float32')).unsqueeze(dim=-1) for x in dataset.features], dim=0),
+                        y=torch.stack(
+                            [torch.from_numpy(y.astype('float32')).unsqueeze(dim=-1) for y in dataset.targets], dim=0))
+
+
+def windmill_output_dataset(dataset: str = 'large', target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
+    """
+    Windmill output datasets
+
+    See:
+    B. Rozemberczki, P. Scherer, Y. He, et al. (2021). PyTorch Geometric Temporal: Spatiotemporal Signal Processing with Neural Machine Learning Models.
+    Proceedings of the 30th ACM International Conference on Information & Knowledge Management (CIKM '21), pp. 4564–4573.
+    https://doi.org/10.1145/3459637.3482014
+
+    :param dataset: Which windmill dataset (large, medium, small)
+    :param target_lags: Prediction target time-steps lag
+    :param feature_lags: If true, include lagged features (default true)
+    :return: A single temporal graph
+    """
+    dataset = dataset.lower()
+    if dataset == 'large':
+        loader = WindmillOutputLargeDatasetLoader()
+    elif dataset == 'medium':
+        loader = WindmillOutputMediumDatasetLoader()
+    elif dataset == 'small':
+        loader = WindmillOutputSmallDatasetLoader()
+    else:
+        raise ValueError('Dataset name should be in (large, medium, small)')
     dataset = loader.get_dataset(lags=target_lags)
     return TemporalData(temporal_keys=['x', 'y'],
                         edge_index=torch.from_numpy(dataset.edge_index),
