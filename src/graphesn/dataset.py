@@ -7,13 +7,15 @@ import torch
 from torch_geometric.data import download_url, extract_zip
 from torch_geometric_temporal.dataset import ChickenpoxDatasetLoader, TwitterTennisDatasetLoader, PedalMeDatasetLoader, \
     WikiMathsDatasetLoader, WindmillOutputLargeDatasetLoader, WindmillOutputMediumDatasetLoader, \
-    WindmillOutputSmallDatasetLoader
+    WindmillOutputSmallDatasetLoader, METRLADatasetLoader, PemsBayDatasetLoader, EnglandCovidDatasetLoader, \
+    MontevideoBusDatasetLoader
 from tqdm import tqdm
 
 from graphesn.data import DynamicData, TemporalData
 
 __all__ = ['TGKDataset', 'chickenpox_dataset', 'twitter_tennis_dataset', 'pedalme_dataset', 'wiki_maths_dataset',
-           'windmill_output_dataset']
+           'windmill_output_dataset', 'metrla_dataset', 'pems_bay_dataset', 'england_covid_dataset',
+           'montevideo_bus_dataset']
 
 
 class TGKDataset:
@@ -186,7 +188,7 @@ def wiki_maths_dataset(target_lags: int = 8, feature_lags: bool = True) -> Tempo
 
 def windmill_output_dataset(dataset: str = 'large', target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
     """
-    Windmill output datasets
+    Windmill output temporal graph datasets
 
     See:
     B. Rozemberczki, P. Scherer, Y. He, et al. (2021). PyTorch Geometric Temporal: Spatiotemporal Signal Processing with Neural Machine Learning Models.
@@ -207,6 +209,108 @@ def windmill_output_dataset(dataset: str = 'large', target_lags: int = 8, featur
         loader = WindmillOutputSmallDatasetLoader()
     else:
         raise ValueError('Dataset name should be in (large, medium, small)')
+    dataset = loader.get_dataset(lags=target_lags)
+    return TemporalData(temporal_keys=['x', 'y'],
+                        edge_index=torch.from_numpy(dataset.edge_index),
+                        edge_weight=torch.from_numpy(dataset.edge_weight.astype('float32')),
+                        x=torch.stack([torch.from_numpy(x.astype('float32')) if feature_lags else torch.from_numpy(
+                            x[:, 0].astype('float32')).unsqueeze(dim=-1) for x in dataset.features], dim=0),
+                        y=torch.stack(
+                            [torch.from_numpy(y.astype('float32')).unsqueeze(dim=-1) for y in dataset.targets], dim=0))
+
+
+def metrla_dataset(root: str = '/tmp', feature_lags: int = 1, target_steps: int = 1,
+                   keep_shape: bool = False) -> TemporalData:
+    """
+    METRLA temporal graph dataset
+
+    See:
+    Yaguang Li, Rose Yu, Cyrus Shahabi, Yan Liu (2018). Diffusion Convolutional Recurrent Neural Network: Data-Driven Traffic Forecasting.
+    International Conference on Learning Representations 2018. https://arxiv.org/abs/1707.01926
+
+    :param root: Root directory for dataset files (default /tmp)
+    :param feature_lags: Vertex features time-steps lag
+    :param target_steps: Number of next steps to predict
+    :param keep_shape: If true, keep original feature shape (2 × feature_lags)
+    :return: A single temporal graph
+    """
+    loader = METRLADatasetLoader(root)
+    dataset = loader.get_dataset(feature_lags, target_steps)
+    return TemporalData(temporal_keys=['x', 'y'],
+                        edge_index=torch.from_numpy(dataset.edge_index),
+                        edge_weight=torch.from_numpy(dataset.edge_weight.astype('float32')),
+                        x=torch.stack([torch.from_numpy(x.astype('float32')) if keep_shape else torch.from_numpy(
+                            x.astype('float32')).reshape(dataset.features[0].shape[0], -1) for x in dataset.features],
+                                      dim=0),
+                        y=torch.stack(
+                            [torch.from_numpy(y.astype('float32')) for y in dataset.targets], dim=0))
+
+
+def pems_bay_dataset(root: str = '/tmp', feature_lags: int = 1, target_steps: int = 1,
+                     keep_shape: bool = False) -> TemporalData:
+    """
+    PeMS Bay temporal graph dataset
+
+    See:
+    Yaguang Li, Rose Yu, Cyrus Shahabi, Yan Liu (2018). Diffusion Convolutional Recurrent Neural Network: Data-Driven Traffic Forecasting.
+    International Conference on Learning Representations 2018. https://arxiv.org/abs/1707.01926
+
+    :param root: Root directory for dataset files (default /tmp)
+    :param feature_lags: Vertex features time-steps lag
+    :param target_steps: Number of next steps to predict
+    :param keep_shape: If true, keep original feature shape (2 × feature_lags)
+    :return: A single temporal graph
+    """
+    loader = PemsBayDatasetLoader(root)
+    dataset = loader.get_dataset(feature_lags, target_steps)
+    return TemporalData(temporal_keys=['x', 'y'],
+                        edge_index=torch.from_numpy(dataset.edge_index),
+                        edge_weight=torch.from_numpy(dataset.edge_weight.astype('float32')),
+                        x=torch.stack([torch.from_numpy(x.astype('float32')) if keep_shape else torch.from_numpy(
+                            x.astype('float32')).reshape(dataset.features[0].shape[0], -1) for x in dataset.features],
+                                      dim=0),
+                        y=torch.stack(
+                            [torch.from_numpy(y.astype('float32')) for y in dataset.targets], dim=0))
+
+
+def england_covid_dataset(target_lags: int = 8, feature_lags: bool = True) -> DynamicData:
+    """
+    England Covid dynamic graph dataset
+
+    See:
+    G. Panagopoulos, G. Nikolentzos, M. Vazirgiannis. (2021). Transfer Graph Neural Networks for Pandemic Forecasting.
+    Proceedings of the AAAI Conference on Artificial Intelligence, 35(6), 4838-4845.
+    https://ojs.aaai.org/index.php/AAAI/article/view/16616
+
+    :param target_lags: Prediction target time-steps lag
+    :param feature_lags: If true, include lagged features (default true)
+    :return: A single dynamic graph
+    """
+    loader = EnglandCovidDatasetLoader()
+    dataset = loader.get_dataset(target_lags)
+    return DynamicData(edge_index=[torch.from_numpy(edge_index) for edge_index in dataset.edge_indices],
+                       edge_weight=[torch.from_numpy(edge_weight.astype('float32')) for edge_weight in
+                                    dataset.edge_weights],
+                       x=torch.stack([torch.from_numpy(x.astype('float32')) if feature_lags else torch.from_numpy(
+                           x[:, 0].astype('float32')).unsqueeze(dim=-1) for x in dataset.features], dim=0),
+                       y=torch.stack(
+                           [torch.from_numpy(y.astype('float32')).unsqueeze(dim=-1) for y in dataset.targets], dim=0))
+
+
+def montevideo_bus_dataset(target_lags: int = 8, feature_lags: bool = True) -> TemporalData:
+    """
+    Montevideo bus temporal graph dataset
+
+    See:
+    B. Rozemberczki, P. Scherer, Y. He, et al. (2021). PyTorch Geometric Temporal: Spatiotemporal Signal Processing with Neural Machine Learning Models.
+    Proceedings of the 30th ACM International Conference on Information & Knowledge Management (CIKM '21), pp. 4564–4573.
+    https://doi.org/10.1145/3459637.3482014
+
+    :param target_lags: Prediction target time-steps lag
+    :param feature_lags: If true, include lagged features (default true)
+    :return: A single temporal graph
+    """
+    loader = MontevideoBusDatasetLoader()
     dataset = loader.get_dataset(lags=target_lags)
     return TemporalData(temporal_keys=['x', 'y'],
                         edge_index=torch.from_numpy(dataset.edge_index),
