@@ -270,7 +270,9 @@ def pems_bay_dataset(root: str = '/tmp', feature_lags: int = 1, target_steps: in
                             x.astype('float32')).reshape(dataset.features[0].shape[0], -1) for x in dataset.features],
                                       dim=0),
                         y=torch.stack(
-                            [torch.from_numpy(y.astype('float32')) for y in dataset.targets], dim=0))
+                            [torch.from_numpy(y.astype('float32')) if keep_shape else torch.from_numpy(
+                                y.astype('float32')).reshape(dataset.features[0].shape[0], -1) for y in
+                             dataset.targets], dim=0))
 
 
 def england_covid_dataset(target_lags: int = 1, feature_lags: bool = True) -> DynamicData:
