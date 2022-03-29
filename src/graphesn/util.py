@@ -2,6 +2,7 @@ import statistics
 from typing import Union, List
 
 import torch.linalg
+from torch import Tensor
 from torch_geometric.typing import Adj, OptTensor
 from torch_geometric.utils import to_dense_adj
 from torch_sparse import SparseTensor
@@ -71,3 +72,17 @@ def compute_dynamic_weighted_graph_alpha(data: DynamicData, ignore_disconnected:
     alphas = [graph_spectral_norm(data[t].edge_index, data[t].edge_weight) for t in range(data.num_timesteps) if
               not ignore_disconnected or data[t].edge_index.shape[1] > 0]
     return statistics.geometric_mean(alphas)
+
+
+def distance_to_proximity(edge_weight: Union[Tensor, List[Tensor]]):
+    """
+    Convert edge weights from distances to proximities via max-min normalization
+
+    :param edge_weight: Edge weights (single tensor or temporal list of tensors)
+    :return: Proximity edge weights
+    """
+    if type(edge_weight) is list:
+        return [distance_to_proximity(edge_weight_t) for edge_weight_t in edge_weight]
+    else:
+        max_weight, min_weight = edge_weight.max(), edge_weight.min()
+        return 1 - (edge_weight - min_weight) / (max_weight - min_weight)
