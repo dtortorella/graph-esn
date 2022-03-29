@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import Size, Tensor
 
-__all__ = ['uniform', 'normal', 'ring', 'ones', 'zeros', 'rescale_']
+__all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'ones', 'zeros', 'rescale_']
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
@@ -66,6 +66,30 @@ def ring(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
     return W.data
 
 
+def orthogonal(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
+               scale: Optional[float] = None) -> Tensor:
+    """
+    Orthogonal matrix
+
+    See:
+    F. Mezzadri (2007). How to Generate Random Matrices from the Classical Compact Groups.
+    Notices of the American Mathematical Society, 54(5), pp. 592-604.
+    https://www.ams.org/notices/200705/fea-mezzadri-web.pdf
+
+    :param size: Size of tensor (if not square, generates a semi-orthogonal matrix)
+    :param rho: Spectral radius (equivalent to others)
+    :param sigma: Spectral norm (equivalent to others)
+    :param scale: Simple rescaling of the matrix (equivalent to others)
+    :return: A re-scaled orthogonal matrix
+    """
+    assert any(arg is not None for arg in [rho, sigma, scale])
+    if scale is None:
+        scale = rho if sigma is None else sigma
+    W = torch.empty(size)
+    torch.nn.init.orthogonal_(W, scale)
+    return W.data
+
+
 def ones(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
          scale: Optional[float] = None) -> Tensor:
     """
@@ -85,7 +109,7 @@ def ones(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
 
 
 def zeros(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
-         scale: Optional[float] = None) -> Tensor:
+          scale: Optional[float] = None) -> Tensor:
     """
     Zeros tensor
 
