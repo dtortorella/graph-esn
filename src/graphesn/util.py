@@ -1,5 +1,5 @@
 import statistics
-from typing import Union, List
+from typing import Union, List, Optional
 
 import torch.linalg
 from torch import Tensor
@@ -10,7 +10,8 @@ from torch_sparse import SparseTensor
 from graphesn import DynamicData
 
 __all__ = ['graph_spectral_norm', 'approximate_graph_spectral_radius',
-           'compute_dynamic_graph_alpha', 'compute_dynamic_weighted_graph_alpha']
+           'compute_dynamic_graph_alpha', 'compute_dynamic_weighted_graph_alpha',
+           'distance_to_proximity', 'to_sparse_adjacency']
 
 
 def graph_spectral_norm(edge_index: Adj, edge_weight: OptTensor = None):
@@ -86,3 +87,17 @@ def distance_to_proximity(edge_weight: Union[Tensor, List[Tensor]]):
     else:
         max_weight, min_weight = edge_weight.max(), edge_weight.min()
         return 1 - (edge_weight - min_weight) / (max_weight - min_weight)
+
+
+def to_sparse_adjacency(edge_index: Adj, edge_weight: OptTensor = None,
+                        num_nodes: Optional[int] = None) -> SparseTensor:
+    """
+    Convert edge index and weights to sparse adjacency tensor
+
+    :param edge_index: Edge index
+    :param edge_weight: Edges weight (optional)
+    :param num_nodes: Number of nodes (optional, but *strongly* advised)
+    :return: Sparse adjacency tensor
+    """
+    return SparseTensor.from_edge_index(edge_index, edge_weight,
+                                        (num_nodes, num_nodes) if num_nodes is not None else None)
