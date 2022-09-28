@@ -85,10 +85,37 @@ class ReservoirConvLayer(MessagePassing):
     @property
     def out_features(self) -> int:
         """Reservoir state dimension"""
-        return self.input_weight.shape[0]
+        return self.recurrent_weight.shape[0]
 
     def extra_repr(self) -> str:
         return f'in={self.in_features}, out={self.out_features}, bias={self.bias is not None}'
+
+
+class ReservoirEmbConvLayer(ReservoirConvLayer):
+    """
+    A Graph ESN convolution layer for categorical input features
+
+    :param input_features: Input categories
+    :param hidden_features: Reservoir dimension
+    :param bias: If bias term is present
+    :param activation: Activation function (default tanh)
+    """
+
+    def __init__(self, input_features: int, hidden_features: int, bias: bool = False,
+                 activation: Union[str, Callable[[Tensor], Tensor]] = 'tanh', **kwargs):
+        super().__init__(input_features, hidden_features, bias, activation, **kwargs)
+        self.input_weight = Parameter(torch.empty(input_features, hidden_features), requires_grad=False)
+
+    def forward(self, edge_index: Adj, input: Tensor, state: Tensor, edge_weight: OptTensor = None):
+        neighbour_aggr = self.propagate(edge_index=edge_index, x=state, edge_weight=edge_weight)
+        return self.leakage * self.activation(
+            F.embedding(input, self.input_weight) + F.linear(neighbour_aggr, self.recurrent_weight, self.bias)) \
+               + (1 - self.leakage) * state
+
+    @property
+    def in_features(self) -> int:
+        """Input categories"""
+        return self.input_weight.shape[0]
 
 
 class GraphReservoir(Module):
@@ -99,16 +126,22 @@ class GraphReservoir(Module):
     :param in_features: Size of input
     :param hidden_features: Size of reservoir (i.e. number of hidden units per layer)
     :param bias: Whether bias term is present
+    :param categorical_input: Whether input features are categorical
     :param kwargs: Other `ReservoirConvLayer` arguments (activation, etc.)
     """
     layers: ModuleList
 
-    def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False, **kwargs):
+    def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False,
+                 categorical_input: bool = False, **kwargs):
         super().__init__()
         assert num_layers > 0
         self.layers = ModuleList()
-        self.layers.append(
-            ReservoirConvLayer(input_features=in_features, hidden_features=hidden_features, bias=bias, **kwargs))
+        if categorical_input:
+            self.layers.append(
+                ReservoirEmbConvLayer(input_features=in_features, hidden_features=hidden_features, bias=bias, **kwargs))
+        else:
+            self.layers.append(
+                ReservoirConvLayer(input_features=in_features, hidden_features=hidden_features, bias=bias, **kwargs))
         for _ in range(1, num_layers):
             self.layers.append(
                 ReservoirConvLayer(input_features=hidden_features, hidden_features=hidden_features, bias=bias,
@@ -155,6 +188,7 @@ class StaticGraphReservoir(GraphReservoir):
     :param fully: Whether to concatenate all layers' encodings, or use just final layer encoding
     :param max_iterations: Maximum number of iterations (optional, default infinity)
     :param epsilon: Convergence condition (default 1e-6)
+    :param categorical_input: Whether input features are categorical
     """
     pooling: Optional[Callable[[Tensor, Tensor], Tensor]]
     fully: bool
@@ -163,8 +197,9 @@ class StaticGraphReservoir(GraphReservoir):
 
     def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False,
                  pooling: Optional[Callable[[Tensor, Tensor], Tensor]] = None, fully: bool = False,
-                 max_iterations: Optional[int] = None, epsilon: float = 1e-6, **kwargs):
-        super().__init__(num_layers, in_features, hidden_features, bias, **kwargs)
+                 max_iterations: Optional[int] = None, epsilon: float = 1e-6, categorical_input: bool = False,
+                 **kwargs):
+        super().__init__(num_layers, in_features, hidden_features, bias, categorical_input, **kwargs)
         self.pooling = pooling
         self.fully = fully
         self.max_iterations = max_iterations
@@ -183,7 +218,8 @@ class StaticGraphReservoir(GraphReservoir):
         :return: Encoding (samples × dim)
         """
         if initial_state is None:
-            initial_state = [torch.zeros(input.shape[0], layer.out_features).to(input) for layer in self.layers]
+            initial_state = [torch.zeros(input.shape[0], layer.out_features).to(layer.recurrent_weight) for layer in
+                             self.layers]
         elif len(initial_state) != self.num_layers and initial_state.dim() == 2:
             initial_state = [initial_state] * self.num_layers
         embeddings = [self._embed(self.layers[0], edge_index, edge_weight, input, initial_state[0])]
@@ -235,14 +271,15 @@ class DynamicGraphReservoir(GraphReservoir):
     :param pooling: Graph pooling function (optional, default no pooling)
     :param fully: Whether to concatenate all layers' encodings, or use just final layer encoding
     :param return_sequences: Return the sequence of states instead of just the final states (default false)
+    :param categorical_input: Whether input features are categorical
     """
     pooling: Optional[Callable[[Tensor, Tensor], Tensor]]
     fully: bool
 
     def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False,
                  pooling: Optional[Callable[[Tensor, Tensor], Tensor]] = None, fully: bool = False,
-                 return_sequences: bool = False, **kwargs):
-        super().__init__(num_layers, in_features, hidden_features, bias, **kwargs)
+                 return_sequences: bool = False, categorical_input: bool = False, **kwargs):
+        super().__init__(num_layers, in_features, hidden_features, bias, categorical_input, **kwargs)
         self.pooling = pooling
         self.fully = fully
         self.return_sequences = return_sequences
@@ -264,7 +301,7 @@ class DynamicGraphReservoir(GraphReservoir):
         """
         if initial_state is None:
             num_nodes = input[0].shape[0] if isinstance(input, list) else input.shape[1]
-            state = [torch.zeros(num_nodes, layer.out_features).to(input[0]) for layer in self.layers]
+            state = [torch.zeros(num_nodes, layer.out_features).to(layer.recurrent_weight) for layer in self.layers]
         elif len(initial_state) != self.num_layers and initial_state.dim() == 2:
             state = [initial_state.clone() for _ in range(self.num_layers)]
         else:
