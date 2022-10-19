@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import Size, Tensor
 
-__all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'ones', 'zeros', 'rescale_']
+__all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'binary', 'ones', 'zeros', 'rescale_']
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
@@ -87,6 +87,27 @@ def orthogonal(size: Size, rho: Optional[float] = None, sigma: Optional[float] =
         scale = rho if sigma is None else sigma
     W = torch.empty(size)
     torch.nn.init.orthogonal_(W, scale)
+    return W.data
+
+
+def binary(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
+           scale: Optional[float] = None) -> Tensor:
+    """
+    Binary random tensor (±1)
+
+    Used as input matrix for Ring Reservoirs. See:
+    C. Gallicchio & A. Micheli (2020). Ring Reservoir Neural Networks for Graphs.
+    In 2020 International Joint Conference on Neural Networks (IJCNN), IEEE.
+    https://doi.org/10.1109/IJCNN48605.2020.9206723
+
+    :param size: Size of tensor
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A random tensor
+    """
+    W = torch.empty(size).uniform_(-1, 1).sign()
+    rescale_(W, rho, sigma, scale)
     return W.data
 
 
