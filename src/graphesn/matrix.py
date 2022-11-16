@@ -3,7 +3,8 @@ from typing import Optional
 import torch
 from torch import Size, Tensor
 
-__all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'binary', 'ones', 'zeros', 'rescale_']
+__all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'symmetric', 'antisymmetric', 'binary', 'ones', 'zeros',
+           'rescale_']
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
@@ -87,6 +88,44 @@ def orthogonal(size: Size, rho: Optional[float] = None, sigma: Optional[float] =
         scale = rho if sigma is None else sigma
     W = torch.empty(size)
     torch.nn.init.orthogonal_(W, scale)
+    return W.data
+
+
+def symmetric(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
+              scale: Optional[float] = None) -> Tensor:
+    """
+    Symmetric random tensor
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A random tensor
+    """
+    W = torch.empty(size).uniform_(-1, 1)
+    W = (W + W.t()) / 2
+    rescale_(W, rho, sigma, scale)
+    return W.data
+
+
+def antisymmetric(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
+                  scale: Optional[float] = None) -> Tensor:
+    """
+    Antisymmetric random tensor
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A random tensor
+    """
+    W = torch.empty(size).uniform_(-1, 1)
+    W = (W - W.t()) / 2
+    rescale_(W, rho, sigma, scale)
     return W.data
 
 
