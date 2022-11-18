@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch import Size, Tensor
@@ -8,7 +8,7 @@ __all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'symmetric', 'antisymmetri
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
-            scale: Optional[float] = None) -> Tensor:
+            scale: Optional[float] = None, range: Tuple[float, float] = (-1, 1)) -> Tensor:
     """
     Uniform random tensor
 
@@ -18,9 +18,10 @@ def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = No
     :param rho: Spectral radius
     :param sigma: Spectral norm
     :param scale: Simple rescaling of the standard random matrix
+    :param range: Range of uniform distribution (default [-1, +1])
     :return: A random tensor
     """
-    W = torch.empty(size).uniform_(-1, 1)
+    W = torch.empty(size).uniform_(*range)
     rescale_(W, rho, sigma, scale)
     return W.data
 
@@ -125,6 +126,26 @@ def antisymmetric(size: Size, rho: Optional[float] = None, sigma: Optional[float
     """
     W = torch.empty(size).uniform_(-1, 1)
     W = (W - W.t()) / 2
+    rescale_(W, rho, sigma, scale)
+    return W.data
+
+
+def diagonal(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
+             scale: Optional[float] = None, range: Tuple[float, float] = (-1, 1)) -> Tensor:
+    """
+    Diagonal uniform random tensor
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :param range: Range of uniform distribution (default [-1, +1])
+    :return: A random tensor
+    """
+    assert size[0] == size[1]
+    W = torch.empty(size[0]).uniform_(*range).diag()
     rescale_(W, rho, sigma, scale)
     return W.data
 
