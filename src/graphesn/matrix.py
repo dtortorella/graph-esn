@@ -3,8 +3,8 @@ from typing import Optional, Tuple
 import torch
 from torch import Size, Tensor
 
-__all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'symmetric', 'antisymmetric', 'binary', 'ones', 'zeros',
-           'rescale_']
+__all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'symmetric', 'antisymmetric', 'diagonal', 'binary', 'ones',
+           'zeros', 'rescale_']
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
