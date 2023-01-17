@@ -1,10 +1,11 @@
-from typing import Optional, Tuple
+import random
+from typing import Optional, Tuple, Union
 
 import torch
 from torch import Size, Tensor
 
 __all__ = ['uniform', 'normal', 'ring', 'orthogonal', 'symmetric', 'antisymmetric', 'diagonal', 'binary', 'ones',
-           'zeros', 'rescale_']
+           'zeros', 'sparse_uniform', 'sparse_normal', 'sparse_binary', 'sparse_ones', 'rescale_']
 
 
 def uniform(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None,
@@ -206,6 +207,115 @@ def zeros(size: Size, rho: Optional[float] = None, sigma: Optional[float] = None
     return W.data
 
 
+def sparse_uniform(size: Size, connections: Union[int, float],
+                   rho: Optional[float] = None, sigma: Optional[float] = None,
+                   scale: Optional[float] = None) -> Tensor:
+    """
+    Sparse uniform random tensor
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param connections: Non-zero weights per row (absolute or ratio)
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A sparse random tensor
+    """
+    assert len(size) == 2
+    if type(connections) is float:
+        connections = int(connections * size[1])
+    rows = sum(([i] * connections for i in range(size[0])), [])
+    cols = sum((random.sample(range(size[1]), connections) for _ in range(size[0])), [])
+    values = torch.empty(len(rows)).uniform_(-1, 1)
+    W = torch.sparse_coo_tensor([rows, cols], values, size).coalesce()
+    rescale_(W, rho, sigma, scale)
+    return W
+
+
+def sparse_normal(size: Size, connections: Union[int, float],
+                  rho: Optional[float] = None, sigma: Optional[float] = None,
+                  scale: Optional[float] = None) -> Tensor:
+    """
+    Sparse normal random tensor
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param connections: Non-zero weights per row (absolute or ratio)
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A sparse random tensor
+    """
+    assert len(size) == 2
+    if type(connections) is float:
+        connections = int(connections * size[1])
+    rows = sum(([i] * connections for i in range(size[0])), [])
+    cols = sum((random.sample(range(size[1]), connections) for _ in range(size[0])), [])
+    values = torch.empty(len(rows)).normal_(mean=0, std=1)
+    W = torch.sparse_coo_tensor([rows, cols], values, size).coalesce()
+    rescale_(W, rho, sigma, scale)
+    return W
+
+
+def sparse_binary(size: Size, connections: Union[int, float],
+                  rho: Optional[float] = None, sigma: Optional[float] = None,
+                  scale: Optional[float] = None) -> Tensor:
+    """
+    Sparse binary random tensor (±1)
+
+    Used as input matrix for Ring Reservoirs. See:
+    C. Gallicchio & A. Micheli (2020). Ring Reservoir Neural Networks for Graphs.
+    In 2020 International Joint Conference on Neural Networks (IJCNN), IEEE.
+    https://doi.org/10.1109/IJCNN48605.2020.9206723
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param connections: Non-zero weights per row (absolute or ratio)
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A sparse random tensor
+    """
+    assert len(size) == 2
+    if type(connections) is float:
+        connections = int(connections * size[1])
+    rows = sum(([i] * connections for i in range(size[0])), [])
+    cols = sum((random.sample(range(size[1]), connections) for _ in range(size[0])), [])
+    values = torch.empty(len(rows)).uniform_(-1, 1).sign()
+    W = torch.sparse_coo_tensor([rows, cols], values, size).coalesce()
+    rescale_(W, rho, sigma, scale)
+    return W
+
+
+def sparse_ones(size: Size, connections: Union[int, float],
+                rho: Optional[float] = None, sigma: Optional[float] = None,
+                scale: Optional[float] = None) -> Tensor:
+    """
+    Sparse ones random tensor
+
+    Can either be rescaled according to spectral radius `rho`, spectral norm `sigma`, or `scale`.
+
+    :param size: Size of tensor
+    :param connections: Non-zero weights per row (absolute or ratio)
+    :param rho: Spectral radius
+    :param sigma: Spectral norm
+    :param scale: Simple rescaling of the standard random matrix
+    :return: A sparse random tensor
+    """
+    assert len(size) == 2
+    if type(connections) is float:
+        connections = int(connections * size[1])
+    rows = sum(([i] * connections for i in range(size[0])), [])
+    cols = sum((random.sample(range(size[1]), connections) for _ in range(size[0])), [])
+    values = torch.ones(len(rows))
+    W = torch.sparse_coo_tensor([rows, cols], values, size).coalesce()
+    rescale_(W, rho, sigma, scale)
+    return W
+
+
 def rescale_(W: Tensor, rho: Optional[float] = None, sigma: Optional[float] = None,
              scale: Optional[float] = None) -> Tensor:
     """
@@ -220,8 +330,8 @@ def rescale_(W: Tensor, rho: Optional[float] = None, sigma: Optional[float] = No
     :return: Rescaled matrix
     """
     if rho is not None:
-        return W.div_(torch.linalg.eigvals(W).abs().max()).mul_(rho)
+        return W.div_(torch.linalg.eigvals(W.to_dense()).abs().max()).mul_(rho)
     elif sigma is not None:
-        return W.div_(torch.linalg.matrix_norm(W, ord=2)).mul_(sigma)
+        return W.div_(torch.linalg.matrix_norm(W.to_dense(), ord=2)).mul_(sigma)
     elif scale is not None:
         return W.mul_(scale)

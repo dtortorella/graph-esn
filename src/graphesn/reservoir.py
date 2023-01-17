@@ -71,10 +71,10 @@ class ReservoirConvLayer(MessagePassing):
         :param bias: Random matrix generator for bias, if present
         :param leakage: Leakage constant
         """
-        self.recurrent_weight.data = recurrent(self.recurrent_weight.shape)
-        self.input_weight.data = input(self.input_weight.shape)
+        self.recurrent_weight.data = recurrent(self.recurrent_weight.shape).to_dense()
+        self.input_weight.data = input(self.input_weight.shape).to_dense()
         if self.bias is not None:
-            self.bias.data = bias(self.bias.shape)
+            self.bias.data = bias(self.bias.shape).to_dense()
         self.leakage.data = torch.tensor(leakage)
 
     @property
