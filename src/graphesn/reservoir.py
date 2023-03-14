@@ -53,7 +53,7 @@ class ReservoirConvLayer(MessagePassing):
         neighbour_aggr = self.propagate(edge_index=edge_index, x=state, edge_weight=edge_weight)
         return self.leakage * self.activation(
             F.linear(input, self.input_weight, self.bias) + F.linear(neighbour_aggr, self.recurrent_weight)) \
-               + (1 - self.leakage) * state
+            + (1 - self.leakage) * state
 
     def message(self, x_j: Tensor, edge_weight: OptTensor = None) -> Tensor:
         return x_j if edge_weight is None else edge_weight.view(-1, 1) * x_j
@@ -110,7 +110,7 @@ class ReservoirEmbConvLayer(ReservoirConvLayer):
         neighbour_aggr = self.propagate(edge_index=edge_index, x=state, edge_weight=edge_weight)
         return self.leakage * self.activation(
             F.embedding(input, self.input_weight) + F.linear(neighbour_aggr, self.recurrent_weight, self.bias)) \
-               + (1 - self.leakage) * state
+            + (1 - self.leakage) * state
 
     @property
     def in_features(self) -> int:
@@ -187,7 +187,7 @@ class StaticGraphReservoir(GraphReservoir):
     :param pooling: Graph pooling function (optional, default no pooling)
     :param fully: Whether to concatenate all layers' encodings, or use just final layer encoding
     :param max_iterations: Maximum number of iterations (optional, default infinity)
-    :param epsilon: Convergence condition (default 1e-6)
+    :param epsilon: Convergence condition (optional, default 1e-6)
     :param categorical_input: Whether input features are categorical
     """
     pooling: Optional[Callable[[Tensor, Tensor], Tensor]]
@@ -197,9 +197,10 @@ class StaticGraphReservoir(GraphReservoir):
 
     def __init__(self, num_layers: int, in_features: int, hidden_features: int, bias: bool = False,
                  pooling: Optional[Callable[[Tensor, Tensor], Tensor]] = None, fully: bool = False,
-                 max_iterations: Optional[int] = None, epsilon: float = 1e-6, categorical_input: bool = False,
-                 **kwargs):
+                 max_iterations: Optional[int] = None, epsilon: Optional[float] = 1e-6,
+                 categorical_input: bool = False, **kwargs):
         super().__init__(num_layers, in_features, hidden_features, bias, categorical_input, **kwargs)
+        assert any((max_iterations, epsilon)), 'At least one of max_iterations or epsilon must be specified'
         self.pooling = pooling
         self.fully = fully
         self.max_iterations = max_iterations
@@ -248,7 +249,7 @@ class StaticGraphReservoir(GraphReservoir):
             state = layer(edge_index, input, old_state, edge_weight)
             if self.max_iterations and iterations >= self.max_iterations:
                 break
-            if torch.norm(old_state - state) < self.epsilon:
+            if self.epsilon and torch.norm(old_state - state) < self.epsilon:
                 break
             old_state = state
             iterations += 1
