@@ -2,14 +2,15 @@ import statistics
 from typing import Union, List, Optional
 
 import torch.linalg
-from torch import Tensor
+from torch import Tensor, LongTensor
 from torch_geometric.typing import Adj, OptTensor
 from torch_geometric.utils import to_dense_adj
+from torch_scatter import segment_sum_coo
 from torch_sparse import SparseTensor
 
 from graphesn import DynamicData
 
-__all__ = ['graph_spectral_norm', 'approximate_graph_spectral_radius',
+__all__ = ['graph_spectral_norm', 'approximate_graph_spectral_radius', 'approximate_graph_spectral_radius_batch',
            'compute_dynamic_graph_alpha', 'compute_dynamic_weighted_graph_alpha',
            'distance_to_proximity', 'to_sparse_adjacency']
 
@@ -45,6 +46,30 @@ def approximate_graph_spectral_radius(adj: SparseTensor, max_iterations: int = 1
             u = v
     alpha = (adj.matmul(v).t() @ v) / (v.t() @ v)
     return alpha.item()
+
+
+def approximate_graph_spectral_radius_batch(adj: SparseTensor, batch: LongTensor,
+                                            max_iterations: int = 1000, threshold: float = 1e-6):
+    """
+    Spectral radii of a graph batch via power method iteration
+
+    :param adj: Sparse adjacency matrix of graph batch
+    :param batch: Sorted batch index
+    :param max_iterations: Maximum number of power iterations
+    :param threshold: Convergence threshold for dominant eigenvector
+    :return: Spectral radii
+    """
+    u = torch.rand(adj.size(0), 1).to(adj.device())
+    u /= segment_sum_coo(u.square(), batch).sqrt().gather(0, batch.unsqueeze(-1))
+    for _ in range(max_iterations):
+        v = adj.matmul(u)
+        v /= segment_sum_coo(v.square(), batch).sqrt().gather(0, batch.unsqueeze(-1))
+        if torch.all(segment_sum_coo((v - u).square(), batch).sqrt() < threshold):
+            break
+        else:
+            u = v
+    alpha = segment_sum_coo(adj.matmul(v) * v, batch) / segment_sum_coo(v.square(), batch)
+    return alpha.squeeze()
 
 
 def compute_dynamic_graph_alpha(data_list: Union[DynamicData, List[Adj]], ignore_disconnected: bool = True):
