@@ -9,6 +9,7 @@ pip install graphesn
 
 ## Usage
 The library is quite straightforward to use:
+
 ```python
 from graphesn import StaticGraphReservoir, Readout, initializer
 from torch_geometric.data import Data
