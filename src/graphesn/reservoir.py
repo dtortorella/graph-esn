@@ -148,7 +148,8 @@ class GraphReservoir(Module):
                                    **kwargs))
 
     def initialize_parameters(self, recurrent: Callable[[Size], Tensor], input: Callable[[Size], Tensor],
-                              bias: Optional[Callable[[Size], Tensor]] = None, leakage: float = 1.0):
+                              bias: Optional[Callable[[Size], Tensor]] = None, leakage: float = 1.0,
+                              input_first: Optional[Callable[[Size], Tensor]] = None):
         """
         Initialize reservoir weights for all layers
 
@@ -156,8 +157,10 @@ class GraphReservoir(Module):
         :param input: Random matrix generator for input weight
         :param bias: Random matrix generator for bias, if present
         :param leakage: Leakage constant
+        :param input_first: Random matrix generator for input weight of first layer (optional)
         """
-        for layer in self.layers:
+        self.layers[0].initialize_parameters(recurrent=recurrent, input=input_first or input, bias=bias, leakage=leakage)
+        for layer in self.layers[1:]:
             layer.initialize_parameters(recurrent=recurrent, input=input, bias=bias, leakage=leakage)
 
     @property
