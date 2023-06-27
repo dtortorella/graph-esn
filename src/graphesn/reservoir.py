@@ -25,6 +25,54 @@ def initializer(name: str, **options) -> Callable[[Size], Tensor]:
     return lambda size: init(size, **options)
 
 
+class RandomProjection(Module):
+    """
+    A random projection layer
+
+    :param in_features: Input dimension
+    :param out_features: Reservoir dimension
+    :param bias: If bias term is present
+    :param activation: Activation function (default tanh)
+    """
+    weight: Parameter
+    bias: Optional[Parameter]
+    activation: Callable[[Tensor], Tensor]
+
+    def __init__(self, in_features: int, out_features: int, bias: bool = False,
+                 activation: Union[str, Callable[[Tensor], Tensor]] = 'tanh', **kwargs):
+        super().__init__(**kwargs)
+        self.weight = Parameter(torch.empty(out_features, in_features), requires_grad=False)
+        self.bias = Parameter(torch.empty(out_features), requires_grad=False) if bias else None
+        self.activation = activation if callable(activation) else getattr(torch, activation)
+
+    def forward(self, x: Tensor):
+        return self.activation(F.linear(x, self.weight, self.bias))
+
+    def initialize_parameters(self, weight: Callable[[Size], Tensor], bias: Optional[Callable[[Size], Tensor]] = None):
+        """
+        Initialize reservoir weights
+
+        :param weight: Random matrix generator for input weight
+        :param bias: Random matrix generator for bias, if present
+        """
+        self.weight.data = weight(self.weight.shape).to_dense()
+        if self.bias is not None:
+            self.bias.data = bias(self.bias.shape).to_dense()
+
+    @property
+    def in_features(self) -> int:
+        """Input dimension"""
+        return self.weight.shape[1]
+
+    @property
+    def out_features(self) -> int:
+        """Output dimension"""
+        return self.weight.shape[0]
+
+    def extra_repr(self) -> str:
+        return f'in={self.in_features}, out={self.out_features}, bias={self.bias is not None}'
+
+
 class ReservoirConvLayer(MessagePassing):
     """
     A Graph ESN convolution layer
